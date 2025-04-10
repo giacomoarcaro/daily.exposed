@@ -1,0 +1,45 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  summary     String?  @db.Text
+  imageUrl    String?
+  tags        String[]
+  category    String
+  author      User     @relation(fields: [authorId], references: [id])
+  authorId    String
+  publishedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDraft     Boolean  @default(true)
+  sourceUrl   String?  // URL originale di BehindMLM
+  views       Int      @default(0)
+  shares      Int      @default(0)
+
+  @@index([slug])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          String    @default("admin")
+  articles      Article[]
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime?
+} 
