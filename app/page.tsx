@@ -1,136 +1,122 @@
 import Link from 'next/link';
 import { format } from 'date-fns';
-import prisma from '@/lib/prisma';
+import { prisma } from '../lib/prisma';
 
 async function getArticles() {
   return prisma.article.findMany({
-    where: {
-      isDraft: false,
-    },
-    include: {
-      author: {
-        select: {
-          name: true,
-        },
-      },
-    },
-    orderBy: {
-      publishedAt: 'desc',
-    },
+    where: { isDraft: false },
+    orderBy: { publishedAt: 'desc' },
     take: 10,
+    include: { author: true },
   });
 }
 
 async function getWarningOfTheMonth() {
   return prisma.article.findFirst({
     where: {
-      isDraft: false,
       category: 'Scam',
+      isDraft: false,
     },
-    include: {
-      author: {
-        select: {
-          name: true,
-        },
-      },
-    },
-    orderBy: {
-      publishedAt: 'desc',
-    },
+    orderBy: { publishedAt: 'desc' },
+    include: { author: true },
   });
 }
 
 export default async function HomePage() {
-  const [articles, warning] = await Promise.all([
+  const [articles, warningOfTheMonth] = await Promise.all([
     getArticles(),
     getWarningOfTheMonth(),
   ]);
 
-  const featuredArticle = articles[0];
-  const otherArticles = articles.slice(1);
+  const [heroArticle, ...otherArticles] = articles;
 
   return (
     <div className="container mx-auto py-8">
-      {/* Hero Article */}
-      {featuredArticle && (
-        <div className="mb-16">
-          <Link href={`/articles/${featuredArticle.slug}`}>
-            <div className="group relative">
-              {featuredArticle.imageUrl && (
+      {heroArticle && (
+        <section className="mb-12">
+          <Link
+            href={`/articles/${heroArticle.slug}`}
+            className="group block overflow-hidden rounded-lg border"
+          >
+            {heroArticle.imageUrl && (
+              <div className="aspect-video w-full overflow-hidden">
                 <img
-                  src={featuredArticle.imageUrl}
-                  alt={featuredArticle.title}
-                  className="w-full aspect-[2/1] object-cover rounded-lg"
+                  src={heroArticle.imageUrl}
+                  alt={heroArticle.title}
+                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
                 />
-              )}
-              <div className="mt-4">
-                <h1 className="text-4xl font-bold group-hover:text-primary transition-colors">
-                  {featuredArticle.title}
-                </h1>
-                <div className="mt-2 flex items-center gap-4 text-muted-foreground">
-                  <span>By {featuredArticle.author.name}</span>
-                  <span>•</span>
-                  <time dateTime={featuredArticle.publishedAt.toISOString()}>
-                    {format(featuredArticle.publishedAt, 'MMMM d, yyyy')}
-                  </time>
-                  <span>•</span>
-                  <span>{featuredArticle.category}</span>
-                </div>
-                {featuredArticle.summary && (
-                  <p className="mt-4 text-lg text-muted-foreground">
-                    {featuredArticle.summary}
-                  </p>
-                )}
               </div>
-            </div>
-          </Link>
-        </div>
-      )}
-
-      {/* Warning of the Month */}
-      {warning && (
-        <div className="mb-16 bg-destructive/10 p-8 rounded-lg">
-          <h2 className="text-2xl font-bold text-destructive mb-4">
-            ⚠️ Warning of the Month
-          </h2>
-          <Link href={`/articles/${warning.slug}`}>
-            <div className="group">
-              <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
-                {warning.title}
-              </h3>
-              {warning.summary && (
-                <p className="mt-2 text-muted-foreground">{warning.summary}</p>
-              )}
-            </div>
-          </Link>
-        </div>
-      )}
-
-      {/* Recent Articles Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {otherArticles.map((article) => (
-          <Link key={article.slug} href={`/articles/${article.slug}`}>
-            <article className="group">
-              {article.imageUrl && (
-                <img
-                  src={article.imageUrl}
-                  alt={article.title}
-                  className="w-full aspect-video object-cover rounded-lg mb-4"
-                />
-              )}
-              <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
-                {article.title}
-              </h3>
-              <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                <time dateTime={article.publishedAt.toISOString()}>
-                  {format(article.publishedAt, 'MMMM d, yyyy')}
-                </time>
+            )}
+            <div className="p-6">
+              <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{heroArticle.category}</span>
                 <span>•</span>
-                <span>{article.category}</span>
+                <time dateTime={heroArticle.publishedAt.toISOString()}>
+                  {format(heroArticle.publishedAt, 'MMMM d, yyyy')}
+                </time>
               </div>
-            </article>
+              <h1 className="mb-4 text-3xl font-bold group-hover:text-primary">
+                {heroArticle.title}
+              </h1>
+              {heroArticle.summary && (
+                <p className="text-lg text-muted-foreground">
+                  {heroArticle.summary}
+                </p>
+              )}
+            </div>
           </Link>
-        ))}
+        </section>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <h2 className="mb-6 text-2xl font-bold">Latest Articles</h2>
+          <div className="space-y-8">
+            {otherArticles.map((article) => (
+              <article
+                key={article.id}
+                className="group rounded-lg border p-6 hover:bg-muted/50"
+              >
+                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{article.category}</span>
+                  <span>•</span>
+                  <time dateTime={article.publishedAt.toISOString()}>
+                    {format(article.publishedAt, 'MMMM d, yyyy')}
+                  </time>
+                </div>
+                <Link href={`/articles/${article.slug}`}>
+                  <h3 className="mb-2 text-xl font-semibold group-hover:text-primary">
+                    {article.title}
+                  </h3>
+                </Link>
+                {article.summary && (
+                  <p className="text-muted-foreground">{article.summary}</p>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <aside>
+          {warningOfTheMonth && (
+            <div className="rounded-lg border bg-destructive/5 p-6">
+              <h2 className="mb-4 text-xl font-bold text-destructive">
+                Warning of the Month
+              </h2>
+              <Link
+                href={`/articles/${warningOfTheMonth.slug}`}
+                className="group block"
+              >
+                <h3 className="mb-2 font-semibold group-hover:text-primary">
+                  {warningOfTheMonth.title}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {format(warningOfTheMonth.publishedAt, 'MMMM d, yyyy')}
+                </p>
+              </Link>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );

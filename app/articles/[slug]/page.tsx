@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
-import prisma from '@/lib/prisma';
+import { prisma } from '../../../lib/prisma';
 
 interface ArticlePageProps {
   params: {
@@ -12,13 +12,7 @@ interface ArticlePageProps {
 async function getArticle(slug: string) {
   const article = await prisma.article.findUnique({
     where: { slug },
-    include: {
-      author: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    include: { author: true },
   });
 
   if (!article || article.isDraft) {
@@ -35,47 +29,33 @@ async function getRelatedArticles(category: string, currentSlug: string) {
       slug: { not: currentSlug },
       isDraft: false,
     },
-    select: {
-      title: true,
-      slug: true,
-      publishedAt: true,
-    },
-    orderBy: {
-      publishedAt: 'desc',
-    },
+    orderBy: { publishedAt: 'desc' },
     take: 3,
+    include: { author: true },
   });
 }
 
 export async function generateMetadata({ params }: ArticlePageProps) {
   const article = await getArticle(params.slug);
-
-  if (!article) {
-    return {
-      title: 'Article Not Found',
-    };
-  }
+  if (!article) return {};
 
   return {
     title: article.title,
-    description: article.summary || article.content.slice(0, 160),
+    description: article.summary,
   };
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const article = await getArticle(params.slug);
+  if (!article) notFound();
 
-  if (!article) {
-    notFound();
-  }
-
-  const relatedArticles = await getRelatedArticles(article.category, params.slug);
+  const relatedArticles = await getRelatedArticles(article.category, article.slug);
 
   return (
     <article className="container mx-auto py-8">
       <header className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">{article.title}</h1>
-        <div className="flex items-center gap-4 text-muted-foreground">
+        <h1 className="mb-4 text-4xl font-bold">{article.title}</h1>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>By {article.author.name}</span>
           <span>•</span>
           <time dateTime={article.publishedAt.toISOString()}>
@@ -87,14 +67,16 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       </header>
 
       {article.imageUrl && (
-        <img
-          src={article.imageUrl}
-          alt={article.title}
-          className="w-full aspect-video object-cover rounded-lg mb-8"
-        />
+        <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
+          <img
+            src={article.imageUrl}
+            alt={article.title}
+            className="h-full w-full object-cover"
+          />
+        </div>
       )}
 
-      <div className="prose prose-lg max-w-none dark:prose-invert">
+      <div className="prose prose-lg mx-auto dark:prose-invert">
         <ReactMarkdown>{article.content}</ReactMarkdown>
       </div>
 
@@ -103,7 +85,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           {article.tags.map((tag) => (
             <span
               key={tag}
-              className="px-3 py-1 bg-muted rounded-full text-sm"
+              className="rounded-full bg-muted px-3 py-1 text-sm"
             >
               {tag}
             </span>
@@ -112,24 +94,21 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       )}
 
       {relatedArticles.length > 0 && (
-        <aside className="mt-16">
-          <h2 className="text-2xl font-bold mb-4">Related Articles</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {relatedArticles.map((related) => (
+        <aside className="mt-12 border-t pt-8">
+          <h2 className="mb-4 text-2xl font-semibold">Related Articles</h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            {relatedArticles.map((article) => (
               <a
-                key={related.slug}
-                href={`/articles/${related.slug}`}
-                className="block group"
+                key={article.id}
+                href={`/articles/${article.slug}`}
+                className="group rounded-lg border p-4 hover:bg-muted/50"
               >
-                <h3 className="font-medium group-hover:text-primary transition-colors">
-                  {related.title}
+                <h3 className="font-medium group-hover:text-primary">
+                  {article.title}
                 </h3>
-                <time
-                  dateTime={related.publishedAt.toISOString()}
-                  className="text-sm text-muted-foreground"
-                >
-                  {format(related.publishedAt, 'MMMM d, yyyy')}
-                </time>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {format(article.publishedAt, 'MMMM d, yyyy')}
+                </p>
               </a>
             ))}
           </div>

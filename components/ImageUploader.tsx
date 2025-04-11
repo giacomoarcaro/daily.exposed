@@ -1,88 +1,82 @@
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
+import * as React from "react"
+import { Button } from "./ui/button"
+import { Input } from "./ui/input"
+import { Label } from "./ui/label"
 
 interface ImageUploaderProps {
-  value?: string;
-  onChange: (url: string) => void;
-  className?: string;
+  value?: string
+  onChange: (url: string) => void
+  onGenerate: () => Promise<void>
+  isGenerating?: boolean
 }
 
 export function ImageUploader({
   value,
   onChange,
-  className = '',
+  onGenerate,
+  isGenerating = false,
 }: ImageUploaderProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [prompt, setPrompt] = useState('');
+  const [isUploading, setIsUploading] = React.useState(false)
 
-  const handleGenerate = async () => {
-    if (!prompt) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    setIsGenerating(true);
+    setIsUploading(true)
     try {
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt }),
-      });
+      const formData = new FormData()
+      formData.append("file", file)
 
-      if (!response.ok) {
-        throw new Error('Failed to generate image');
-      }
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
 
-      const data = await response.json();
-      onChange(data.imageUrl);
+      if (!response.ok) throw new Error("Upload failed")
+
+      const data = await response.json()
+      onChange(data.url)
     } catch (error) {
-      console.error('Error generating image:', error);
-      alert('Failed to generate image. Please try again.');
+      console.error("Upload error:", error)
     } finally {
-      setIsGenerating(false);
+      setIsUploading(false)
     }
-  };
+  }
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      <div>
-        <label
-          htmlFor="image-prompt"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Generate Image with DALL·E
-        </label>
-        <div className="mt-1 flex rounded-md shadow-sm">
-          <input
-            type="text"
-            id="image-prompt"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="block w-full flex-1 rounded-none rounded-l-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            placeholder="Describe the image you want to generate..."
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="image">Article Image</Label>
+        <div className="flex gap-2">
+          <Input
+            id="image"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            disabled={isUploading}
           />
-          <button
+          <Button
             type="button"
-            onClick={handleGenerate}
-            disabled={isGenerating || !prompt}
-            className="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+            variant="outline"
+            onClick={onGenerate}
+            disabled={isGenerating}
           >
-            {isGenerating ? 'Generating...' : 'Generate'}
-          </button>
+            {isGenerating ? "Generating..." : "Generate with DALL·E"}
+          </Button>
         </div>
       </div>
 
       {value && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-          <Image
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
+          <img
             src={value}
-            alt="Generated image"
-            fill
+            alt="Article cover"
             className="object-cover"
           />
         </div>
       )}
     </div>
-  );
+  )
 } 

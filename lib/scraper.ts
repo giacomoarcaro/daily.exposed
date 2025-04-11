@@ -5,6 +5,7 @@ interface ScrapedArticle {
   content: string;
   category: string;
   tags: string[];
+  summary: string;
 }
 
 export async function scrapeArticle(url: string): Promise<ScrapedArticle> {
@@ -17,11 +18,11 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle> {
     const title = $('h1.entry-title').text().trim();
 
     // Estrai il contenuto
-    const content = $('.entry-content')
-      .find('p')
-      .map((_, el) => $(el).text())
-      .get()
-      .join('\n\n');
+    const content = $(".entry-content")
+      .html()
+      ?.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      .trim() || "";
 
     // Estrai la categoria
     const category = $('.entry-categories a').first().text().trim();
@@ -31,11 +32,15 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle> {
       .map((_, el) => $(el).text().trim())
       .get();
 
+    // Extract summary (first paragraph)
+    const summary = $(".entry-content p").first().text().trim();
+
     return {
       title,
       content,
       category,
       tags,
+      summary,
     };
   } catch (error) {
     console.error('Error scraping article:', error);

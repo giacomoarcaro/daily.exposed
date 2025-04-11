@@ -1,141 +1,244 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArticleRewriter } from '@/components/ArticleRewriter';
-import { ImageUploader } from '@/components/ImageUploader';
+import * as React from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "./ui/button"
+import { Input } from "./ui/input"
+import { Label } from "./ui/label"
+import { Select } from "./ui/select"
+import { Textarea } from "./ui/textarea"
+import { MarkdownEditor } from "./MarkdownEditor"
+import { ImageUploader } from "./ImageUploader"
+import { slugify } from "../lib/utils"
+import { useState } from "react"
 
-interface ArticleFormProps {
-  initialData?: {
-    id?: string;
-    title?: string;
-    content?: string;
-    summary?: string;
-    category?: string;
-    imageUrl?: string;
-    isDraft?: boolean;
-  };
-  userId: string;
-}
-
-export function ArticleForm({ initialData, userId }: ArticleFormProps) {
-  const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function ArticleForm() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [isGeneratingImage, setIsGeneratingImage] = React.useState(false)
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    content: initialData?.content || '',
-    summary: initialData?.summary || '',
-    category: initialData?.category || 'News',
-    imageUrl: initialData?.imageUrl || '',
-    isDraft: initialData?.isDraft ?? true,
-  });
+    title: "",
+    slug: "",
+    content: "",
+    image: "",
+    category: "",
+    tags: "",
+    status: "draft"
+  })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    e.preventDefault()
+    setIsLoading(true)
 
     try {
-      const response = await fetch('/api/articles', {
-        method: initialData?.id ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch("/api/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          id: initialData?.id,
-          userId,
         }),
-      });
+      })
 
-      if (!response.ok) {
-        throw new Error('Failed to save article');
-      }
+      if (!response.ok) throw new Error("Failed to save article")
 
-      const data = await response.json();
-      router.push(`/admin/articles/${data.id}`);
+      const data = await response.json()
+      router.push(`/articles/${data.slug}`)
     } catch (error) {
-      console.error('Error saving article:', error);
-      alert('Failed to save article. Please try again.');
+      console.error("Error saving article:", error)
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false)
     }
-  };
+  }
+
+  const handleScrape = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: formData.sourceUrl }),
+      })
+
+      if (!response.ok) throw new Error("Failed to scrape article")
+
+      const data = await response.json()
+      setFormData((prev) => ({
+        ...prev,
+        title: data.title,
+        content: data.content,
+        summary: data.summary,
+      }))
+    } catch (error) {
+      console.error("Error scraping article:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRewrite = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: formData.content }),
+      })
+
+      if (!response.ok) throw new Error("Failed to rewrite article")
+
+      const data = await response.json()
+      setFormData((prev) => ({
+        ...prev,
+        content: data.content,
+      }))
+    } catch (error) {
+      console.error("Error rewriting article:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGenerateImage = async () => {
+    setIsGeneratingImage(true)
+    try {
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `Create a stylized editorial illustration that represents ${formData.title}. The image should feel like a modern magazine article visual, symbolic and clean.`,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate image")
+
+      const data = await response.json()
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: data.imageUrl,
+      }))
+    } catch (error) {
+      console.error("Error generating image:", error)
+    } finally {
+      setIsGeneratingImage(false)
+    }
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="title">Title</Label>
-          <Input
-            id="title"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            required
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="summary">Summary</Label>
-          <Input
-            id="summary"
-            value={formData.summary}
-            onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-            required
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="category">Category</Label>
-          <Select
-            value={formData.category}
-            onValueChange={(value) => setFormData({ ...formData, category: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="News">News</SelectItem>
-              <SelectItem value="Investigation">Investigation</SelectItem>
-              <SelectItem value="Scam">Scam</SelectItem>
-              <SelectItem value="Technology">Technology</SelectItem>
-              <SelectItem value="Politics">Politics</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Image</Label>
-          <ImageUploader
-            value={formData.imageUrl}
-            onChange={(url) => setFormData({ ...formData, imageUrl: url })}
-          />
-        </div>
-
-        <div>
-          <Label>Content</Label>
-          <ArticleRewriter
-            initialContent={formData.content}
-            onContentChange={(content) => setFormData({ ...formData, content })}
-          />
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="title">Title</Label>
+        <Input
+          id="title"
+          name="title"
+          value={formData.title}
+          onChange={handleChange}
+          required
+        />
       </div>
 
-      <div className="flex justify-end space-x-4">
+      <div className="space-y-2">
+        <Label htmlFor="slug">Slug</Label>
+        <Input
+          id="slug"
+          name="slug"
+          value={formData.slug}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="content">Content</Label>
+        <Textarea
+          id="content"
+          name="content"
+          value={formData.content}
+          onChange={handleChange}
+          rows={10}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="image">Image URL</Label>
+        <Input
+          id="image"
+          name="image"
+          type="url"
+          value={formData.image}
+          onChange={handleChange}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="category">Category</Label>
+        <Select
+          id="category"
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Select a category</option>
+          <option value="news">News</option>
+          <option value="investigation">Investigation</option>
+          <option value="scam">Scam</option>
+          <option value="technology">Technology</option>
+          <option value="politics">Politics</option>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="tags">Tags (comma separated)</Label>
+        <Input
+          id="tags"
+          name="tags"
+          value={formData.tags}
+          onChange={handleChange}
+          placeholder="e.g. technology, scam, warning"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="status">Status</Label>
+        <Select
+          id="status"
+          name="status"
+          value={formData.status}
+          onChange={handleChange}
+          required
+        >
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+        </Select>
+      </div>
+
+      <div className="flex gap-4">
         <Button
           type="button"
           variant="outline"
-          onClick={() => setFormData({ ...formData, isDraft: !formData.isDraft })}
+          onClick={handleScrape}
+          disabled={isLoading}
         >
-          {formData.isDraft ? 'Mark as Ready' : 'Save as Draft'}
+          Scrape URL
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save Article'}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleRewrite}
+          disabled={isLoading}
+        >
+          Rewrite with AI
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save Article"}
         </Button>
       </div>
     </form>
-  );
+  )
 } 
