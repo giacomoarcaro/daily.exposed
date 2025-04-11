@@ -1,157 +1,139 @@
+'use client';
+
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { toast } from '@/components/ui/use-toast';
-import { MarkdownEditor } from '@/components/MarkdownEditor';
-
-const articleSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
-  category: z.string().min(1, 'Category is required'),
-  tags: z.array(z.string()),
-  imageUrl: z.string().optional(),
-  isDraft: z.boolean().default(true),
-});
-
-type ArticleFormData = z.infer<typeof articleSchema>;
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArticleRewriter } from '@/components/ArticleRewriter';
+import { ImageUploader } from '@/components/ImageUploader';
 
 interface ArticleFormProps {
-  onSubmit: (data: ArticleFormData) => Promise<void>;
-  initialData?: Partial<ArticleFormData>;
+  initialData?: {
+    id?: string;
+    title?: string;
+    content?: string;
+    summary?: string;
+    category?: string;
+    imageUrl?: string;
+    isDraft?: boolean;
+  };
+  userId: string;
 }
 
-export function ArticleForm({ onSubmit, initialData }: ArticleFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [sourceUrl, setSourceUrl] = useState('');
-
-  const form = useForm<ArticleFormData>({
-    resolver: zodResolver(articleSchema),
-    defaultValues: {
-      title: initialData?.title || '',
-      content: initialData?.content || '',
-      category: initialData?.category || 'MLM',
-      tags: initialData?.tags || [],
-      imageUrl: initialData?.imageUrl,
-      isDraft: initialData?.isDraft ?? true,
-    },
+export function ArticleForm({ initialData, userId }: ArticleFormProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    title: initialData?.title || '',
+    content: initialData?.content || '',
+    summary: initialData?.summary || '',
+    category: initialData?.category || 'News',
+    imageUrl: initialData?.imageUrl || '',
+    isDraft: initialData?.isDraft ?? true,
   });
 
-  const handleScrape = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: sourceUrl }),
+      const response = await fetch('/api/articles', {
+        method: initialData?.id ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          id: initialData?.id,
+          userId,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to scrape article');
+        throw new Error('Failed to save article');
       }
 
       const data = await response.json();
-      form.reset(data);
-      toast({
-        title: 'Article scraped successfully',
-        description: 'The content has been imported and can now be edited.',
-      });
+      router.push(`/admin/articles/${data.id}`);
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to scrape article. Please try again.',
-        variant: 'destructive',
-      });
+      console.error('Error saving article:', error);
+      alert('Failed to save article. Please try again.');
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = async (data: ArticleFormData) => {
-    try {
-      setIsLoading(true);
-      await onSubmit(data);
-      toast({
-        title: 'Success',
-        description: 'Article saved successfully.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to save article. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="BehindMLM URL"
-          value={sourceUrl}
-          onChange={(e) => setSourceUrl(e.target.value)}
-        />
-        <Button
-          type="button"
-          onClick={handleScrape}
-          disabled={isLoading || !sourceUrl}
-        >
-          Scrape
-        </Button>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="title">Title</Label>
+          <Input
+            id="title"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="summary">Summary</Label>
+          <Input
+            id="summary"
+            value={formData.summary}
+            onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select
+            value={formData.category}
+            onValueChange={(value) => setFormData({ ...formData, category: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="News">News</SelectItem>
+              <SelectItem value="Investigation">Investigation</SelectItem>
+              <SelectItem value="Scam">Scam</SelectItem>
+              <SelectItem value="Technology">Technology</SelectItem>
+              <SelectItem value="Politics">Politics</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Image</Label>
+          <ImageUploader
+            value={formData.imageUrl}
+            onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+          />
+        </div>
+
+        <div>
+          <Label>Content</Label>
+          <ArticleRewriter
+            initialContent={formData.content}
+            onContentChange={(content) => setFormData({ ...formData, content })}
+          />
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <Input
-          placeholder="Title"
-          {...form.register('title')}
-          error={form.formState.errors.title?.message}
-        />
-
-        <Select
-          options={[
-            { value: 'MLM', label: 'MLM' },
-            { value: 'Crypto', label: 'Crypto' },
-            { value: 'Scam', label: 'Scam' },
-            { value: 'AI', label: 'AI' },
-          ]}
-          {...form.register('category')}
-          error={form.formState.errors.category?.message}
-        />
-
-        <div className="h-[500px]">
-          <MarkdownEditor
-            value={form.watch('content')}
-            onChange={(value) => form.setValue('content', value)}
-          />
-        </div>
-
-        <Input
-          placeholder="Image URL"
-          {...form.register('imageUrl')}
-        />
-
-        <div className="flex items-center space-x-2">
-          <Switch
-            checked={form.watch('isDraft')}
-            onCheckedChange={(checked) => form.setValue('isDraft', checked)}
-          />
-          <span>Draft</span>
-        </div>
-
+      <div className="flex justify-end space-x-4">
         <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full"
+          type="button"
+          variant="outline"
+          onClick={() => setFormData({ ...formData, isDraft: !formData.isDraft })}
         >
-          {isLoading ? 'Saving...' : 'Save Article'}
+          {formData.isDraft ? 'Mark as Ready' : 'Save as Draft'}
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save Article'}
         </Button>
       </div>
     </form>

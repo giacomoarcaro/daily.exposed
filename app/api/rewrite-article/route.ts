@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { scrapeArticle } from '@/lib/scraper';
+import { rewriteArticle } from '@/lib/openai';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || session.user.role !== 'admin') {
+  if (!session?.user || session.user.role !== 'admin') {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
   try {
-    const body = await request.json();
-    const { url } = body;
+    const { content } = await request.json();
 
-    if (!url) {
-      return new NextResponse('URL is required', { status: 400 });
+    if (!content) {
+      return new NextResponse('Content is required', { status: 400 });
     }
 
-    const article = await scrapeArticle(url);
-    return NextResponse.json(article);
+    const rewrittenContent = await rewriteArticle(content);
+
+    return NextResponse.json({ content: rewrittenContent });
   } catch (error) {
-    console.error('Error scraping article:', error);
+    console.error('Error rewriting article:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 } 

@@ -1,35 +1,59 @@
+'use client';
+
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 
 interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
+  className?: string;
 }
 
-export function MarkdownEditor({ value, onChange }: MarkdownEditorProps) {
-  const [tab, setTab] = useState<'write' | 'preview'>('write');
+export function MarkdownEditor({
+  value,
+  onChange,
+  className = '',
+}: MarkdownEditorProps) {
+  const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write');
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(v as 'write' | 'preview')}>
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="write">Write</TabsTrigger>
-        <TabsTrigger value="preview">Preview</TabsTrigger>
-      </TabsList>
-      <TabsContent value="write" className="mt-4">
-        <Textarea
+    <div className={`space-y-4 ${className}`}>
+      <div className="flex space-x-4 border-b">
+        <button
+          type="button"
+          className={`border-b-2 px-4 py-2 ${
+            activeTab === 'write'
+              ? 'border-indigo-500 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('write')}
+        >
+          Write
+        </button>
+        <button
+          type="button"
+          className={`border-b-2 px-4 py-2 ${
+            activeTab === 'preview'
+              ? 'border-indigo-500 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('preview')}
+        >
+          Preview
+        </button>
+      </div>
+
+      {activeTab === 'write' ? (
+        <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="min-h-[400px] font-mono"
-          placeholder="Write your article in Markdown..."
+          className="min-h-[500px] w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
         />
-      </TabsContent>
-      <TabsContent value="preview" className="mt-4">
-        <div className="prose prose-sm max-w-none dark:prose-invert">
+      ) : (
+        <div className="prose min-h-[500px] max-w-none rounded-md border p-4">
           <ReactMarkdown>{value}</ReactMarkdown>
         </div>
-      </TabsContent>
-    </Tabs>
+      )}
+    </div>
   );
 } 

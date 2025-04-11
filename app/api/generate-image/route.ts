@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { scrapeArticle } from '@/lib/scraper';
+import { generateImage } from '@/lib/openai';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || session.user.role !== 'admin') {
+  if (!session?.user || session.user.role !== 'admin') {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
   try {
-    const body = await request.json();
-    const { url } = body;
+    const { prompt } = await request.json();
 
-    if (!url) {
-      return new NextResponse('URL is required', { status: 400 });
+    if (!prompt) {
+      return new NextResponse('Prompt is required', { status: 400 });
     }
 
-    const article = await scrapeArticle(url);
-    return NextResponse.json(article);
+    const imageUrl = await generateImage(prompt);
+
+    return NextResponse.json({ imageUrl });
   } catch (error) {
-    console.error('Error scraping article:', error);
+    console.error('Error generating image:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 } 

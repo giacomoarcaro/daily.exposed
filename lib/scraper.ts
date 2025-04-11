@@ -3,52 +3,42 @@ import * as cheerio from 'cheerio';
 interface ScrapedArticle {
   title: string;
   content: string;
-  publishedAt: Date;
-  sourceUrl: string;
   category: string;
   tags: string[];
 }
 
-export async function scrapeBehindMLM(url: string): Promise<ScrapedArticle> {
+export async function scrapeArticle(url: string): Promise<ScrapedArticle> {
   try {
     const response = await fetch(url);
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Extract title
+    // Estrai il titolo
     const title = $('h1.entry-title').text().trim();
 
-    // Extract content
+    // Estrai il contenuto
     const content = $('.entry-content')
-      .clone()    // Clone the element
-      .children() // Select all children
-      .remove()   // Remove all children
-      .end()      // Go back to selected element
-      .text()     // Get the text content
-      .trim();    // Remove whitespace
+      .find('p')
+      .map((_, el) => $(el).text())
+      .get()
+      .join('\n\n');
 
-    // Extract date
-    const dateStr = $('.entry-date').first().attr('datetime') || '';
-    const publishedAt = new Date(dateStr);
+    // Estrai la categoria
+    const category = $('.entry-categories a').first().text().trim();
 
-    // Extract categories
-    const category = $('.cat-links a').first().text().trim() || 'Uncategorized';
-
-    // Extract tags
-    const tags = $('.tags-links a')
+    // Estrai i tag
+    const tags = $('.entry-tags a')
       .map((_, el) => $(el).text().trim())
       .get();
 
     return {
       title,
       content,
-      publishedAt,
-      sourceUrl: url,
       category,
       tags,
     };
   } catch (error) {
-    console.error('Error scraping BehindMLM:', error);
+    console.error('Error scraping article:', error);
     throw new Error('Failed to scrape article');
   }
 }
